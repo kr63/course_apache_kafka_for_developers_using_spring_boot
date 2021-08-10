@@ -1,0 +1,3 @@
+rootProject.name = 'course_apache_kafka_for_developers_using_spring_boot'
+include 'l1701_library-events-consumer'
+
