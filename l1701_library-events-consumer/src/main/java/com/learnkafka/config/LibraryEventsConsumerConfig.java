@@ -1,9 +1,13 @@
 package com.learnkafka.config;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.learnkafka.service.LibraryEventsService;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +23,10 @@ import org.springframework.retry.support.RetryTemplate;
 @Configuration
 @EnableKafka
 @Slf4j
+@AllArgsConstructor
 public class LibraryEventsConsumerConfig {
+
+    private final LibraryEventsService libraryEventsService;
 
     @Bean
     ConcurrentKafkaListenerContainerFactory<?, ?> kafkaListenerContainerFactory(
@@ -32,6 +39,21 @@ public class LibraryEventsConsumerConfig {
         factory.setErrorHandler(((thrownException, data) ->
                 log.info("Exception in consumerConfig is {} and the record is {}", thrownException.getMessage(), data)));
         factory.setRetryTemplate(retryTemplate());
+        factory.setRecoveryCallback((context -> {
+            if (context.getLastThrowable().getCause() instanceof RecoverableDataAccessException) {
+                log.info("Inside the recoverable logic");
+                Arrays.asList(context.attributeNames()).forEach(attribute -> {
+                    log.info("Attribute name: {}", attribute);
+                    log.info("Attribute value: {}", context.getAttribute(attribute));
+                });
+                final ConsumerRecord<Integer, String> record = (ConsumerRecord<Integer, String>) context.getAttribute("record");
+                libraryEventsService.handleRecovery(record);
+            } else {
+                log.info("Inside the non recoverable logic");
+                throw new RuntimeException(context.getLastThrowable().getMessage());
+            }
+            return null;
+        }));
 
         return factory;
     }
