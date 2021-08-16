@@ -7,6 +7,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.retry.RetryPolicy;
+import org.springframework.retry.backoff.FixedBackOffPolicy;
+import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.retry.support.RetryTemplate;
 
 @Configuration
 @EnableKafka
@@ -23,8 +27,24 @@ public class LibraryEventsConsumerConfig {
         factory.setConcurrency(3);
         factory.setErrorHandler(((thrownException, data) ->
                 log.info("Exception in consumerConfig is {} and the record is {}", thrownException.getMessage(), data)));
+        factory.setRetryTemplate(retryTemplate());
 
         return factory;
+    }
+
+    private RetryTemplate retryTemplate() {
+        var policy = new FixedBackOffPolicy();
+        policy.setBackOffPeriod(1000);
+        final RetryTemplate template = new RetryTemplate();
+        template.setRetryPolicy(simpleRetryPolicy());
+        template.setBackOffPolicy(policy);
+        return template;
+    }
+
+    private RetryPolicy simpleRetryPolicy() {
+        SimpleRetryPolicy policy = new SimpleRetryPolicy();
+        policy.setMaxAttempts(3);
+        return policy;
     }
 
 }
